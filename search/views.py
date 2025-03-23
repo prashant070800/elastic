@@ -38,7 +38,6 @@ def list_indexes(request):
 def create_index(request):
     """Create an index"""
     index_name = request.data.get("index_name")
-    
     settings = {
         "number_of_shards": 1,
         "number_of_replicas": 1
@@ -52,7 +51,7 @@ def create_index(request):
         "store": False 
       }
     }
-  }
+  }               
 
     response = search_service.create_index(index_name, settings, mappings)
     return JsonResponse(response)
@@ -65,8 +64,8 @@ def create_index(request):
         type=openapi.TYPE_OBJECT,
         properties={
             'index_name': openapi.Schema(type=openapi.TYPE_STRING, description="Index name"),
-            'doc_id': openapi.Schema(type=openapi.TYPE_STRING, description="Document ID"),
-            'document': openapi.Schema(type=openapi.TYPE_OBJECT, description="Document content"),
+            'message_id': openapi.Schema(type=openapi.TYPE_STRING, description="Document ID"),
+            'message': openapi.Schema(type=openapi.TYPE_STRING, description="Document content"),
         }
     ),
     responses={200: "Document inserted successfully"}
@@ -75,10 +74,10 @@ def create_index(request):
 def insert_document(request):
     """Insert a document into Elasticsearch"""
     index_name = request.data.get("index_name")
-    doc_id = request.data.get("doc_id")
-    document = request.data.get("document",{})
+    doc_id = request.data.get("message_id")
+    message = request.data.get("message")
 
-    response = search_service.insert_document(index_name, doc_id, document)
+    response = search_service.insert_document(index_name, document={"message_id":doc_id, "text":message }, doc_id=doc_id)
     return JsonResponse(response.body, safe=False)
 
 # 📌 Search in an index
@@ -102,4 +101,26 @@ def search_documents(request):
 
     response = search_service.search_documents(index_name, query)
     print(response)
+    return JsonResponse(response.body)
+
+# 📌 Search in an index with term vector
+@swagger_auto_schema(
+    method='post',
+    operation_description="Search for documents in an index",
+    request_body=openapi.Schema(
+        type=openapi.TYPE_OBJECT,
+        properties={
+            'index_name': openapi.Schema(type=openapi.TYPE_STRING, description="Index name"),
+            'term': openapi.Schema(type=openapi.TYPE_STRING, description="Search string"),
+        }
+    ),
+    responses={200: "Search results"}
+)
+@api_view(['POST'])
+def search_documents_terms(request):
+    """Search documents in Elasticsearch"""
+    index_name = request.data.get("index_name")
+    term = request.data.get("term")
+
+    response = search_service.search_term_positions(term=term, index_name=index_name)
     return JsonResponse(response.body)

@@ -23,7 +23,7 @@ class Search:
             return self.es.indices.get(index=index_name)
         return {"error": f"Index '{index_name}' does not exist."}
 
-    def insert_document(self, index_name: str, doc_id: str, document: dict):
+    def insert_document(self, index_name: str, document: dict, doc_id: Optional[str]=None):
         """Insert a single document"""
         response = self.es.index(index=index_name, id=doc_id, body=document)
         print(response)
@@ -51,3 +51,43 @@ class Search:
         
     # )
     #     print(response)
+
+    def search_term_positions(self,term: str,index_name: str, top_n: int = 5):
+        # Step 1: Search for matching messages
+        search_response = self.es.search(index=index_name, body={
+            "query": {"match": {"text": term}},
+            "size": top_n,
+            "_source": ["message_id","text"]
+        })
+        print(search_response)
+        results = []
+        
+        for hit in search_response["hits"]["hits"]:
+            message_id = hit["_id"]
+
+            # Step 2: Get term positions using term_vectors
+            term_vector_response = self.es.termvectors(
+                index=index_name,
+                id=message_id,
+                fields=["text"],
+                term_statistics=False,
+                positions=True,
+                offsets=True,
+                filter={"term": {"text": term}}
+            )
+
+            matches = []
+            if "term_vectors" in term_vector_response and "text" in term_vector_response["term_vectors"]:
+                terms = term_vector_response["term_vectors"]["text"]["terms"]
+                for word, details in terms.items():
+                    if "tokens" in details:
+                        for token in details["tokens"]:
+                            matches.append({
+                                "term": word,
+                                "start_offset": token["start_offset"],
+                                "end_offset": token["end_offset"]
+                            })
+
+            results.append({"message_id": message_id, "matches": matches})
+        print(results)
+        return results
